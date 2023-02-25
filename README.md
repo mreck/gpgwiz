@@ -40,6 +40,11 @@ ssb   rsa4096/9C2AD0177CA5E87A 2023-02-12 [A] [expires: 2024-02-12]
 ssb   rsa4096/6D22D0FC376103BC 2023-02-12 [E] [expires: 2024-02-12]
 ```
 
+- If you have `tar` installed, then all files will be stored in an
+  `.tar.gz` archive as well.
+- If you have [Paperkey](https://www.jabberwocky.com/software/paperkey/)
+  installed, the a paper key will be created in stored in a `.txt` file.
+
 ### 2. List all keys
 
 Simply lists all keys. Pretty self explanatory.
@@ -48,4 +53,5 @@ Simply lists all keys. Pretty self explanatory.
 
 Thing I still want to add:
 
-- [ ] Automatically create a paperkey as well.
+- [x] Automatically create a paperkey as well.
+- [ ] Use a RAM disk as the temp directory.

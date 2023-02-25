@@ -1,7 +1,9 @@
 #!/bin/sh
 
+set -e
+
 [ -z "$GPG_WIZ_SUBKEY_EXPIRE" ] && GPG_WIZ_SUBKEY_EXPIRE='1y'
-[ -z "$GPG_WIZ_EXPORT_DIR" ]    && GPG_WIZ_EXPORT_DIR='.'
+[ -z "$GPG_WIZ_OUTPUT_DIR" ]    && GPG_WIZ_OUTPUT_DIR="$(pwd)"
 
 log() {
     echo ''
@@ -30,7 +32,7 @@ get_gpg_home() {
     fi
 }
 
-action_full_gen() {
+action_full_gen() (
     require_exec gpg
 
     log "Please provide the basic information for GPG"
@@ -41,21 +43,29 @@ action_full_gen() {
     read -p "name > " name
     [ -z "$name" ] && log_error "Name can not be empty"
 
-    log "Where do you want to store the generated files? (default '.')"
+    log "Where do you want to store the generated files? (default: $GPG_WIZ_OUTPUT_DIR)"
 
     read -p "dir > " dir
-    [ ! -z "$dir" ] && GPG_WIZ_EXPORT_DIR="$dir"
-    if [ -d "$GPG_WIZ_EXPORT_DIR" ] && log_error "directory \"$GPG_WIZ_EXPORT_DIR\" does not exist"
+    [ ! -z "$dir" ] && GPG_WIZ_OUTPUT_DIR="$dir"
+    [ ! -d "$GPG_WIZ_OUTPUT_DIR" ] && log_error "directory \"$GPG_WIZ_OUTPUT_DIR\" does not exist"
 
-    file_sec="$GPG_WIZ_EXPORT_DIR/$email.sec.asc"
-    file_pub="$GPG_WIZ_EXPORT_DIR/$email.pub.asc"
-    file_sub="$GPG_WIZ_EXPORT_DIR/$email.sub-sec.asc"
-    file_rev="$GPG_WIZ_EXPORT_DIR/$email.rev"
+    working_dir="/tmp/gpg_wiz_$(date +%s)"
+    mkdir -p "$working_dir"
+    cd "$working_dir"
+
+    log "info: working dir: $working_dir"
+
+    file_pre="./$email.gpg"
+
+    file_sec="$file_pre.sec.asc"
+    file_pub="$file_pre.pub.asc"
+    file_sub="$file_pre.sub.asc"
+    file_rev="$file_pre.rev"
+    file_txt="$file_pre.txt"
+    file_arc="$file_pre.tar.gz"
+    file_cmd="$file_pre.cmd"
 
     log "generating master key..."
-
-    timestamp="$(date +%s)"
-    file_cmd="/tmp/gpg_wiz_cmd_$timestamp"
 
     touch "$file_cmd"
     echo "%echo Generating master key" >> "$file_cmd"
@@ -84,14 +94,22 @@ action_full_gen() {
     gpg --armor --export                "$fpr" > "$file_pub"
     gpg --armor --export-secret-subkeys "$fpr" > "$file_sub"
 
+    log "grabbing revocation cert..."
+
     cp -v "$(get_gpg_home)/openpgp-revocs.d/$fpr.rev" "$file_rev"
+
+    if [ -x "$(which paperkey)" ]; then
+        log "creating paperkey..."
+        gpg --export-secret-keys "$fpr" | paperkey --output "$file_txt"
+    else
+        log "No paperkey found. If you want the wizard to create a paper backup, please install paperkey."
+    fi
 
     if [ -x "$(which tar)" ]; then
         log "creating archive..."
-
-        tar -zcvf                                           \
-            $GPG_WIZ_EXPORT_DIR/$email.key-export.tar.gz    \
-            "$file_sec" "$file_pub" "$file_sub" "$file_rev"
+        tar -zcvf "$file_arc" ./*
+    else
+        log "No tar found. If you want the wizard to create an archive, please install tar."
     fi
 
     log "deleting keys from gpg..."
@@ -102,10 +120,14 @@ action_full_gen() {
 
     gpg --import "$file_sub"
 
+    log "copying to output dir..."
+
+    cp -v ./* "$GPG_WIZ_OUTPUT_DIR"
+
     log "all done."
 
     gpg --list-secret-keys --keyid-format=long "$email"
-}
+)
 
 action_list() {
     require_exec gpg
